@@ -5,7 +5,7 @@ function syncTodoistToWorkBlocks() {
     const now = new Date();
     // Round 'now' up to the nearest 15 minutes to avoid messy start times
     const cleanNow = new Date(Math.ceil(now.getTime() / 900000) * 900000); 
-    const endWindow = new Date(now.getTime() + (7 * 24 * 60 * 60 * 1000));
+    const endWindow = new Date(now.getTime() + (14 * 24 * 60 * 60 * 1000)); // Look ahead 2 weeks
   
     // Duration mapping based on task labels (simplified to 3 tiers)
     const durationMap = {
