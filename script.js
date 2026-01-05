@@ -35,9 +35,18 @@ function syncTodoistToWorkBlocks() {
       // Filter: Must have due date
       if (!task.due) return;
   
-      // Filter: Check if already synced
+      // Check if already synced
       const alreadySynced = calendar.getEvents(now, endWindow, {search: task.id});
-      if (alreadySynced.length > 0) return;
+      if (alreadySynced.length > 0) {
+        // Task already exists, check if name needs updating
+        const existingEvent = alreadySynced[0];
+        const expectedTitle = `Task: ${task.content}`;
+        if (existingEvent.getTitle() !== expectedTitle) {
+          existingEvent.setTitle(expectedTitle);
+          console.log(`📝 Updated task name: "${task.content}"`);
+        }
+        return;
+      }
   
       let taskScheduled = false;
   
