@@ -21,15 +21,15 @@ This script bridges your Todoist task list with Google Calendar by:
 1. Create a new Google Apps Script project at [script.google.com](https://script.google.com)
 2. Copy the contents of `script.js` into the editor
 3. Add your Todoist API token (Settings → Integrations → Developer)
-4. Configure your target Google Calendar ID
-5. Set up a time-based trigger for automatic syncing
+4. Set up a time-based trigger for automatic syncing
 
 ## Configuration
 
 You'll need:
 
 - **Todoist API Token**: Get this from Todoist Settings → Integrations → Developer
-- **Google Calendar ID**: The calendar where events will be created (use `primary` for your main calendar)
+
+Events will be created on your primary Google Calendar.
 
 ## License
 
