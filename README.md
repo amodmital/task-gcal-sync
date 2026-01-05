@@ -19,6 +19,8 @@ This script bridges your Todoist task list with Google Calendar by:
 - **Deadline-Aware Spreading**: Tasks with far-out deadlines are distributed across the schedule
 - **Block Size Matching**: Longer tasks are prioritized for larger work blocks to prevent fragmentation
 - **Conflict Avoidance**: Checks for conflicts with accepted and busy calendar events before scheduling
+- **Working Location Aware**: Automatically ignores Google Calendar working location events and all-day events
+- **Transparency Support**: Respects event transparency settings (transparent/free events don't block scheduling)
 - **Multiple Tasks Per Block**: Work blocks can accommodate multiple task slots
 - **Task Filtering**: Only syncs active Todoist tasks that have due dates
 - **Duplicate Prevention**: Skips tasks that have already been synced to your calendar
@@ -35,7 +37,12 @@ This script bridges your Todoist task list with Google Calendar by:
    - Deadline proximity (avoid too-close or after-deadline slots)
    - Block size matching (long tasks prefer large blocks)
    - Deadline distance (far deadlines get spread out)
-6. **Conflict Detection**: Before placing a task, the script checks for:
+6. **Conflict Detection**: Before placing a task, the script checks for conflicts while ignoring:
+   - All-day events (like working location indicators)
+   - Transparent/free events (marked as available time)
+   - The "Work Block" container event itself
+   
+   Only these events count as conflicts:
    - Other tasks already scheduled in that time slot
    - Accepted calendar events (GuestStatus.YES)
    - Events you own (GuestStatus.OWNER)
@@ -141,6 +148,8 @@ The `cleanup.js` script provides a way to bulk-delete all synced tasks from your
 - Tasks are scheduled by deadline priority using the Earliest Deadline First (EDF) algorithm
 - Far-deadline tasks are intelligently spread across the 2-week window to preserve near-term capacity
 - To reset your schedule completely, run `cleanup.js` followed by `script.js`
+- **Working locations** and all-day events are automatically ignored during conflict detection
+- Events marked as "free" or "transparent" in your calendar won't block task scheduling
 
 ## Future Features Under Consideration
 

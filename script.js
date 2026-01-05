@@ -127,6 +127,19 @@ function syncTodoistToWorkBlocks() {
       const eventsInSlot = calendar.getEvents(taskStart, taskEnd);
       const conflicts = eventsInSlot.filter(event => {
         if (event.getId() === slot.blockId) return false; // Ignore the work block itself
+        
+        // Ignore working location events (they're usually all-day and marked as transparent)
+        if (event.isAllDayEvent()) return false;
+        
+        // Check event transparency - "transparent" events (free time) shouldn't block
+        try {
+          if (event.getTransparency && event.getTransparency() === CalendarApp.EventTransparency.TRANSPARENT) {
+            return false;
+          }
+        } catch (e) {
+          // getTransparency might not be available, continue
+        }
+        
         const status = event.getMyStatus();
         return (status === CalendarApp.GuestStatus.YES || status === CalendarApp.GuestStatus.OWNER);
       });
@@ -146,6 +159,19 @@ function syncTodoistToWorkBlocks() {
         const eventsInRange = calendar.getEvents(checkTime, nextCheckTime);
         const hasConflict = eventsInRange.some(event => {
           if (event.getId() === slot.blockId) return false;
+          
+          // Ignore working location events (they're usually all-day and marked as transparent)
+          if (event.isAllDayEvent()) return false;
+          
+          // Check event transparency - "transparent" events (free time) shouldn't block
+          try {
+            if (event.getTransparency && event.getTransparency() === CalendarApp.EventTransparency.TRANSPARENT) {
+              return false;
+            }
+          } catch (e) {
+            // getTransparency might not be available, continue
+          }
+          
           const status = event.getMyStatus();
           return (status === CalendarApp.GuestStatus.YES || status === CalendarApp.GuestStatus.OWNER);
         });
