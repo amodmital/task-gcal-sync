@@ -142,6 +142,20 @@ The `cleanup.js` script provides a way to bulk-delete all synced tasks from your
 - Far-deadline tasks are intelligently spread across the 2-week window to preserve near-term capacity
 - To reset your schedule completely, run `cleanup.js` followed by `script.js`
 
+## Future Features Under Consideration
+
+The following features are being considered for future development:
+
+1. **Subtask Management**
+   - Support for Todoist subtasks in scheduling
+   - Option to schedule parent task and subtasks together
+   - Intelligent grouping of related subtasks within work blocks
+
+2. **Unscheduled Task Alerting**
+   - Flag/alert when a task approaches its due date without being scheduled
+   - Automatically clear the flag once the task gets assigned to a calendar slot
+   - Configurable warning threshold (e.g., alert if task due in 24 hours with no schedule)
+
 ## License
 
 MIT
