@@ -42,16 +42,22 @@ This script bridges your Todoist task list with Google Calendar by:
 7. **Best Slot Selection**: Picks the highest-scoring slot for each task
 8. **Dynamic Updates**: Removes used slots from the pool after scheduling each task
 
+## Project Files
+
+- **`script.js`**: Main sync script that schedules Todoist tasks into Work Blocks
+- **`cleanup.js`**: Utility script to delete all synced tasks from your calendar
+
 ## Setup
 
 1. Create a new Google Apps Script project at [script.google.com](https://script.google.com)
-2. Copy the contents of `script.js` into the editor
-3. Set up your Todoist API token:
-   - Go to File → Project Properties → Script Properties
+2. Copy the contents of `script.js` into the default `Code.gs` file
+3. (Optional) Create an additional file for `cleanup.js` if you want the cleanup utility
+4. Set up your Todoist API token:
+   - Go to Project Settings (gear icon) → Script Properties
    - Add a new property with key: `TODOIST_API_KEY`
    - Value: Your Todoist API token (get it from Todoist Settings → Integrations → Developer)
-4. Create "Work Block" events on your primary Google Calendar for times when you want tasks to be scheduled
-5. Set up a time-based trigger for automatic syncing:
+5. Create "Work Block" events on your primary Google Calendar for times when you want tasks to be scheduled
+6. Set up a time-based trigger for automatic syncing:
    - Go to Triggers (clock icon in left sidebar)
    - Add a new trigger for the `syncTodoistToWorkBlocks` function
    - Recommended: Run hourly or every few hours
@@ -99,12 +105,42 @@ Use these labels in Todoist to control task duration:
 - **`l`** (large): 60 minutes
 - **No label**: Defaults to 15 minutes
 
+## Cleanup Script
+
+The `cleanup.js` script provides a way to bulk-delete all synced tasks from your calendar.
+
+### When to Use
+
+- You want to clear all synced tasks and start fresh
+- You're testing the sync script and need to reset your calendar
+- You've made changes to task labels/durations and want to reschedule everything
+
+### How to Use
+
+1. In your Google Apps Script project, create a new file called `cleanup.js`
+2. Copy the contents of `cleanup.js` from this repository
+3. Run the `deleteSyncedTasks()` function manually from the script editor
+4. The script will:
+   - Scan your calendar for the next 2 weeks
+   - Identify events with "Todoist ID:" in their description
+   - Delete all matching events
+   - Provide a summary of deleted events
+
+### Important Notes
+
+- **This action cannot be undone** - deleted calendar events go to your calendar's trash
+- Only events created by the sync script (with Todoist ID in description) will be deleted
+- Your "Work Block" events will NOT be affected
+- Other calendar events will NOT be affected
+- After cleanup, run the main sync script to reschedule tasks
+
 ## Notes
 
-- If you delete a task hold from your calendar, it may be recreated on the next sync. Delete the task from Todoist instead.
+- If you delete a task hold from your calendar, it may be recreated on the next sync. Delete the task from Todoist instead, or use the cleanup script to bulk-delete all synced tasks.
 - The script uses the Todoist task ID to track which tasks have been synced, preventing duplicates
 - Tasks are scheduled by deadline priority using the Earliest Deadline First (EDF) algorithm
 - Far-deadline tasks are intelligently spread across the 2-week window to preserve near-term capacity
+- To reset your schedule completely, run `cleanup.js` followed by `script.js`
 
 ## License
 
