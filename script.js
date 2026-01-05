@@ -48,14 +48,13 @@ function syncTodoistToWorkBlocks() {
     
     console.log(`📅 Found ${workBlocks.length} Work Block(s) and ${tasks.length} task(s) to process`);
   
-    // 3. Process each task independently
-    tasks.forEach(task => {
-      // Filter: Must have due date
+    // 3. Filter and prepare tasks for scheduling
+    const tasksToSchedule = tasks.filter(task => {
       if (!task.due) {
         console.log(`⏭️ Skipping "${task.content}" - no due date`);
-        return;
+        return false;
       }
-  
+      
       // Check if already synced
       const alreadySynced = calendar.getEvents(now, endWindow, {search: task.id});
       if (alreadySynced.length > 0) {
@@ -66,62 +65,144 @@ function syncTodoistToWorkBlocks() {
           existingEvent.setTitle(expectedTitle);
           console.log(`📝 Updated task name: "${task.content}"`);
         }
+        return false;
+      }
+      return true;
+    });
+    
+    // Sort tasks by deadline (earliest deadline first - EDF algorithm)
+    tasksToSchedule.sort((a, b) => {
+      const dateA = new Date(a.due.date);
+      const dateB = new Date(b.due.date);
+      return dateA - dateB;
+    });
+    
+    console.log(`📋 ${tasksToSchedule.length} task(s) need scheduling (sorted by deadline)`);
+    
+    // 4. Find all available slots across all work blocks
+    function findAvailableSlots() {
+      const slots = [];
+      
+      workBlocks.forEach(block => {
+        let blockStart = block.getStartTime();
+        let blockEnd = block.getEndTime();
+        
+        // Adjust block start if it's in the past
+        if (blockStart < cleanNow) {
+          blockStart = cleanNow;
+        }
+        
+        // Skip if entire block is in the past
+        if (blockEnd <= cleanNow) {
+          return;
+        }
+        
+        // Generate 5-minute slots within this block
+        let slotStart = new Date(blockStart.getTime());
+        while (slotStart < blockEnd) {
+          slots.push({
+            start: new Date(slotStart.getTime()),
+            blockId: block.getId(),
+            blockEnd: blockEnd
+          });
+          slotStart = new Date(slotStart.getTime() + (5 * 60000)); // 5 min increments
+        }
+      });
+      
+      return slots;
+    }
+    
+    const availableSlots = findAvailableSlots();
+    console.log(`🎯 Found ${availableSlots.length} potential time slots`);
+    
+    // 5. Helper function to check if a slot can accommodate a task
+    function canScheduleInSlot(slot, taskDurationMins, blockEnd) {
+      const taskStart = slot.start;
+      const taskEnd = new Date(taskStart.getTime() + (taskDurationMins * 60000));
+      
+      // Check if task fits within the block
+      if (taskEnd > blockEnd) {
+        return false;
+      }
+      
+      // Check for conflicts
+      const eventsInSlot = calendar.getEvents(taskStart, taskEnd);
+      const conflicts = eventsInSlot.filter(event => {
+        if (event.getId() === slot.blockId) return false; // Ignore the work block itself
+        const status = event.getMyStatus();
+        return (status === CalendarApp.GuestStatus.YES || status === CalendarApp.GuestStatus.OWNER);
+      });
+      
+      return conflicts.length === 0;
+    }
+    
+    // 6. Schedule tasks using intelligent placement
+    tasksToSchedule.forEach(task => {
+      const taskDurationMins = getTaskDuration(task);
+      const deadline = new Date(task.due.date);
+      
+      console.log(`🔍 Scheduling "${task.content}" (${taskDurationMins}min, due: ${deadline.toLocaleDateString()})...`);
+      
+      // Find all valid slots for this task
+      const validSlots = availableSlots.filter(slot => 
+        canScheduleInSlot(slot, taskDurationMins, slot.blockEnd)
+      );
+      
+      if (validSlots.length === 0) {
+        console.log(`❌ Could not schedule "${task.content}" - no available slots found`);
         return;
       }
-  
-      console.log(`🔍 Looking for slot for "${task.content}"...`);
-      let taskScheduled = false;
       
-      // Reset cursor for each task to check all blocks from the beginning
-      let blockIndex = 0;
-      let currentBlock = workBlocks[0];
-      let cursorTime = currentBlock.getStartTime() < cleanNow ? cleanNow : currentBlock.getStartTime();
-  
-      // Keep trying to find a slot for this task until we run out of blocks
-      while (!taskScheduled && blockIndex < workBlocks.length) {
+      // Score each slot based on proximity to deadline and earliness
+      const scoredSlots = validSlots.map(slot => {
+        const slotStart = slot.start;
+        const daysUntilDeadline = (deadline - slotStart) / (1000 * 60 * 60 * 24);
+        const daysFromNow = (slotStart - cleanNow) / (1000 * 60 * 60 * 24);
         
-        let blockEnd = currentBlock.getEndTime();
-        let taskDurationMins = getTaskDuration(task);
-        let taskEndTime = new Date(cursorTime.getTime() + (taskDurationMins * 60000));
-  
-        // CASE A: The task duration extends OUTSIDE the current block
-        // Move to the next block
-        if (taskEndTime > blockEnd) {
-          blockIndex++;
-          if (blockIndex < workBlocks.length) {
-            currentBlock = workBlocks[blockIndex];
-            // Reset cursor to start of new block (or Now, if block started in past)
-            let bStart = currentBlock.getStartTime();
-            cursorTime = bStart < cleanNow ? cleanNow : bStart;
-            console.log(`   Moving to next work block starting at ${cursorTime.toLocaleString()}`);
-          }
-          continue; // Retry logic with new block
-        }
-  
-        // CASE B: Check for conflicts in this time slot
-        let eventsInSlot = calendar.getEvents(cursorTime, taskEndTime);
-        let realConflicts = eventsInSlot.filter(event => {
-          if (event.getId() === currentBlock.getId()) return false; // Ignore container block
-          let status = event.getMyStatus();
-          return (status === CalendarApp.GuestStatus.YES || status === CalendarApp.GuestStatus.OWNER); 
-        });
-  
-        if (realConflicts.length === 0) {
-          // SUCCESS: Slot is free
-          calendar.createEvent(`Task: ${task.content}`, cursorTime, taskEndTime, {
-            description: "Todoist ID: " + task.id
-          });
-          console.log(`✅ Scheduled "${task.content}" (${taskDurationMins}min) at ${cursorTime.toLocaleString()}`);
-          taskScheduled = true;
+        // Scoring heuristic:
+        // - Prefer slots that are ASAP (negative penalty for being far in future)
+        // - But not too close to deadline (leave buffer)
+        // - Penalize slots after deadline heavily
+        let score = 0;
+        
+        if (slotStart > deadline) {
+          score = -1000; // Heavy penalty for being after deadline
+        } else if (daysUntilDeadline < 0.5) {
+          score = -500; // Penalty for being too close to deadline (less than 12 hours)
         } else {
-          // FAIL: Slot is busy. Skip ahead by 5 minutes and try again
-          console.log(`   Conflict at ${cursorTime.toLocaleString()}. Trying next slot...`);
-          cursorTime = new Date(cursorTime.getTime() + (5 * 60000)); // Advance by 5 minutes
+          // Prefer earlier slots (ASAP) but with diminishing returns
+          score = 100 - daysFromNow * 10;
+          // Bonus for having reasonable buffer before deadline
+          if (daysUntilDeadline > 1) {
+            score += 20;
+          }
         }
-      }
+        
+        return { slot, score };
+      });
       
-      if (!taskScheduled) {
-        console.log(`❌ Could not schedule "${task.content}" (${getTaskDuration(task)}min) - no available slots found`);
+      // Sort by score (highest first) and pick the best slot
+      scoredSlots.sort((a, b) => b.score - a.score);
+      const bestSlot = scoredSlots[0].slot;
+      
+      // Schedule the task
+      const taskStart = bestSlot.start;
+      const taskEnd = new Date(taskStart.getTime() + (taskDurationMins * 60000));
+      
+      calendar.createEvent(`Task: ${task.content}`, taskStart, taskEnd, {
+        description: "Todoist ID: " + task.id
+      });
+      
+      console.log(`✅ Scheduled "${task.content}" (${taskDurationMins}min) at ${taskStart.toLocaleString()}`);
+      
+      // Remove used slots from available slots to prevent double-booking
+      const taskStartTime = taskStart.getTime();
+      const taskEndTime = taskEnd.getTime();
+      for (let i = availableSlots.length - 1; i >= 0; i--) {
+        const slotTime = availableSlots[i].start.getTime();
+        if (slotTime >= taskStartTime && slotTime < taskEndTime) {
+          availableSlots.splice(i, 1);
+        }
       }
     });
   }
