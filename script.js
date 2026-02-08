@@ -52,7 +52,13 @@ function syncTodoistToWorkBlocks() {
         console.log(`⏭️ Skipping "${task.content}" - no due date`);
         return false;
       }
-      
+
+      // Only sync tasks that start with "tsk"
+      if (!task.content.startsWith("tsk")) {
+        console.log(`⏭️ Skipping "${task.content}" - does not start with 'tsk'`);
+        return false;
+      }
+
       // Check if already synced
       const alreadySynced = calendar.getEvents(now, endWindow, {search: task.id});
       if (alreadySynced.length > 0) {
