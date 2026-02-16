@@ -29,10 +29,11 @@ function syncTodoistToWorkBlocks() {
     } 
   
     // 1. Fetch active tasks
-    const response = UrlFetchApp.fetch("https://api.todoist.com/rest/v2/tasks", {
+    const response = UrlFetchApp.fetch("https://api.todoist.com/api/v1/tasks", {
       headers: { "Authorization": "Bearer " + TODOIST_TOKEN }
     });
-    const tasks = JSON.parse(response.getContentText());
+    const responseData = JSON.parse(response.getContentText());
+    const tasks = responseData.results || [];
   
     // 2. Get Work Blocks & Sort them by time to ensure we fill earliest slots first
     const allEvents = calendar.getEvents(now, endWindow);
